@@ -1,6 +1,6 @@
 # llm-wiki - 多平台知识库构建 Skill
 
-> 基于 [Karpathy 的 llm-wiki 方法论](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)，为 Claude Code、Codex、OpenClaw 这类 agent 提供统一的个人知识库构建系统。
+> 基于 [Karpathy 的 llm-wiki 方法论](docs/references/karpathy-llm-wiki.md)，为 Claude Code、Codex、OpenClaw 这类 agent 提供统一的个人知识库构建系统。
 
 ## 它做什么
 
@@ -12,11 +12,7 @@
 
 最省事的方式是把这个仓库链接直接扔给你正在用的 agent，让它自己完成安装。
 
-你也可以先看对应平台的入口说明：
-
-- [Claude Code 入口](platforms/claude/CLAUDE.md)
-- [Codex 入口](platforms/codex/AGENTS.md)
-- [OpenClaw 入口](platforms/openclaw/README.md)
+llm-wiki 已拆分为多个独立子 skill（`skills/wiki-init/`、`skills/wiki-ingest/` 等），agent 会根据你的意图自动路由到对应工作流。
 
 ## 前置条件
 
@@ -25,39 +21,9 @@
 - 如果你要自动提取微信公众号或 YouTube 字幕，机器上需要有 `uv`
 - `bun` 或 `npm` 二选一即可，安装网页提取依赖时会自动择一使用
 
-## 安装方式
-
-推荐顺序：
-
-1. 把仓库链接交给 agent，让它自己安装。
-2. 如果你要手动查看或本地调试，再克隆仓库到任意目录。
-
-如果你要给 agent 一个明确动作，可以让它进入仓库根目录后执行：
-
-```bash
-# Claude Code
-bash install.sh --platform claude
-
-# Codex
-bash install.sh --platform codex
-
-# OpenClaw
-bash install.sh --platform openclaw
-```
-
-默认安装位置：
-
-- Claude Code: `~/.claude/skills/llm-wiki`
-- Codex: `~/.codex/skills/llm-wiki`（如果你旧环境还在用 `~/.Codex/skills`，安装器也会兼容）
-- OpenClaw: `~/.openclaw/skills/llm-wiki`
-
-如果 OpenClaw 不是这一路径，也可以显式传入 `--target-dir <你的技能目录>`。
-
-旧的 Claude 安装方式仍然保留给现有用户：`bash setup.sh`。它现在只是统一安装器的兼容入口。
-
 ## 来源边界
 
-这一步已经把安装输出、状态说明、文档和回归测试统一到同一份来源定义。仓库里的权威清单是 `scripts/source-registry.tsv`，URL 和文件路由也统一通过 `scripts/source-registry.sh` 读取。
+当前来源定义以 `scripts/source-registry.tsv` 为唯一权威来源，URL 和文件路由统一通过 `scripts/source-registry.sh` 读取。
 
 | 分类 | 当前来源 | 处理方式 |
 |------|----------|----------|
@@ -74,7 +40,7 @@ bash install.sh --platform openclaw
 ## 功能
 
 - **零配置初始化**：一句话创建知识库，自动生成目录结构和模板
-- **智能素材路由**：根据 URL 域名自动选择最佳提取方式
+- **智能素材路由**：根据来源注册表自动选择提取方式
 - **内容分级处理**：长文章完整整理，短内容简化处理，避免浪费
 - **批量消化**：给一个文件夹路径，批量处理所有文件
 - **结构化 Wiki**：自动生成素材摘要、实体页、主题页，用 `[[双向链接]]` 互相关联
@@ -83,35 +49,23 @@ bash install.sh --platform openclaw
 
 ## 常见问题
 
-### 我应该先看哪个文件？
+### 这个仓库只给某个 agent 用吗？
 
-看你现在用的 agent：
+不是。Claude Code、Codex、OpenClaw 共用同一套核心内容。这个仓库本身就是通用技能包，不再维护根路由器 `SKILL.md` 和 `platforms/` 入口树。
 
-- Claude Code: [platforms/claude/CLAUDE.md](platforms/claude/CLAUDE.md)
-- Codex: [platforms/codex/AGENTS.md](platforms/codex/AGENTS.md)
-- OpenClaw: [platforms/openclaw/README.md](platforms/openclaw/README.md)
+### 为什么网页 / X / 知乎提取失败？
 
-### 这个仓库还是只给 Claude 用吗？
+这几类来源统一走 `baoyu-url-to-markdown`，依赖 Chrome CDP。先在 macOS 上执行：
 
-不是。Claude 只是其中一个入口。这个仓库现在的目标是让同一个链接能被多个 agent 原生安装和使用。
+```bash
+open -na "Google Chrome" --args --remote-debugging-port=9222
+```
 
-### agent 自动安装时应该跑哪条命令？
+如果 Chrome 已启动但仍失败，优先检查当前 Chrome 会话是否已登录目标站点；再不行就改走手动粘贴入口。
 
-让当前 agent 按自己所在平台执行：
+### 为什么公众号提取失败？
 
-- Claude Code: `bash install.sh --platform claude`
-- Codex: `bash install.sh --platform codex`
-- OpenClaw: `bash install.sh --platform openclaw`
-
-只有在环境里明确只存在一个平台目录时，才建议用 `--platform auto`。
-
-### 为什么 X / Twitter 提取还是失败？
-
-X / Twitter 现在走 `baoyu-url-to-markdown`。如果提取失败，通常是因为 Chrome 没有启动调试模式，或者当前 Chrome 会话没有登录 X。你也可以直接把内容复制粘贴给 agent 处理。
-
-### 为什么公众号提取还是失败？
-
-公众号现在使用 `wechat-article-to-markdown`。如果机器上还没有 `uv`，安装器会提示并跳过这一项；补装 `uv` 后重新运行 `bash install.sh --platform <你的平台>` 即可。
+公众号当前使用 `wechat-article-to-markdown`。如果机器上没有 `uv`，先安装；如果自动提取仍失败，也可以直接把正文粘贴给 agent 继续走知识库主线。
 
 ## 目录结构
 

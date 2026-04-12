@@ -124,7 +124,7 @@ exit 0"
     output="$(
         HOME="$tmp_dir/home" \
         PATH="$tmp_dir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-        bash "$REPO_ROOT/setup.sh" 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/setup.sh" 2>&1
     )" || fail "setup.sh should run successfully under bash 3.2"
 
     [ -d "$tmp_dir/home/.claude/skills/baoyu-url-to-markdown" ] || fail "Expected baoyu-url-to-markdown to be installed"
@@ -147,7 +147,7 @@ test_install_dry_run_for_claude() {
 
     output="$(
         HOME="$tmp_dir/home" \
-        bash "$REPO_ROOT/install.sh" --platform claude --dry-run 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform claude --dry-run 2>&1
     )" || fail "install.sh dry-run for Claude should succeed"
 
     assert_text_contains "$output" "平台：claude"
@@ -163,7 +163,7 @@ test_install_auto_refuses_ambiguous_platforms() {
 
     if output="$(
         HOME="$tmp_dir/home" \
-        bash "$REPO_ROOT/install.sh" --platform auto 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform auto 2>&1
     )"; then
         fail "install.sh auto should fail when multiple platform homes are present"
     fi
@@ -188,10 +188,10 @@ exit 1'
 
     HOME="$tmp_dir/home" \
     PATH="$tmp_dir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    bash "$REPO_ROOT/install.sh" --platform openclaw > /dev/null 2>&1 || fail "install.sh should install for OpenClaw"
+    bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform openclaw > /dev/null 2>&1 || fail "install.sh should install for OpenClaw"
 
-    assert_path_exists "$tmp_dir/home/.openclaw/skills/llm-wiki/SKILL.md"
-    assert_path_exists "$tmp_dir/home/.openclaw/skills/llm-wiki/install.sh"
+    assert_path_exists "$tmp_dir/home/.openclaw/skills/llm-wiki/skills/wiki-init/SKILL.md"
+    assert_path_exists "$tmp_dir/home/.openclaw/skills/llm-wiki/skills/wiki-init/install.sh"
     assert_path_exists "$tmp_dir/home/.openclaw/skills/llm-wiki/scripts/source-registry.sh"
     assert_path_exists "$tmp_dir/home/.openclaw/skills/baoyu-url-to-markdown"
 }
@@ -211,12 +211,17 @@ test_init_fills_language_placeholder() {
 test_readme_sections() {
     assert_file_contains "$REPO_ROOT/README.md" "## 前置条件"
     assert_file_contains "$REPO_ROOT/README.md" "## 常见问题"
-    assert_file_contains "$REPO_ROOT/README.md" "bash install.sh --platform claude"
-    assert_file_contains "$REPO_ROOT/README.md" "bash install.sh --platform codex"
-    assert_file_contains "$REPO_ROOT/README.md" "bash install.sh --platform openclaw"
     assert_file_contains "$REPO_ROOT/README.md" "wechat-article-to-markdown"
     assert_file_not_contains "$REPO_ROOT/README.md" "x-article-extractor"
     assert_file_not_contains "$REPO_ROOT/README.md" "baoyu-danger-x-to-markdown"
+    assert_file_not_contains "$REPO_ROOT/README.md" "install.sh --platform"
+    [ ! -L "$REPO_ROOT/README.md" ] || fail "README.md should not be a symlink"
+    [ -L "$REPO_ROOT/CLAUDE.md" ] || fail "CLAUDE.md should be a symlink"
+    [ "$(readlink "$REPO_ROOT/CLAUDE.md")" = "AGENTS.md" ] || fail "CLAUDE.md should point to AGENTS.md"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "## 前置条件"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "## 架构"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "## 来源边界"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "## 常见问题"
 }
 
 test_uv_tool_install_failure_is_graceful() {
@@ -239,19 +244,20 @@ exit 1'
     output="$(
         HOME="$tmp_dir/home" \
         PATH="$tmp_dir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-        bash "$REPO_ROOT/install.sh" --platform claude 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform claude 2>&1
     )" || fail "install.sh should keep going when uv tool install fails"
 
     assert_text_contains "$output" "wechat-article-to-markdown 安装失败"
     assert_text_contains "$output" "llm-wiki 已准备完成"
-    assert_path_exists "$tmp_dir/home/.claude/skills/llm-wiki/SKILL.md"
+    assert_path_exists "$tmp_dir/home/.claude/skills/llm-wiki/skills/wiki-init/SKILL.md"
 }
 
-test_skill_md_routes_wechat_to_new_tool() {
-    assert_file_contains "$REPO_ROOT/SKILL.md" "scripts/source-registry.sh match-url"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "scripts/source-registry.sh match-file"
-    assert_file_contains "$REPO_ROOT/SKILL.md" '`adapter_name`'
-    assert_file_not_contains "$REPO_ROOT/SKILL.md" "x-article-extractor"
+test_ingest_routes_wechat_to_new_tool() {
+    local file="$REPO_ROOT/skills/wiki-ingest/SKILL.md"
+    assert_file_contains "$file" "source-registry.sh match-url"
+    assert_file_contains "$file" "source-registry.sh match-file"
+    assert_file_contains "$file" 'adapter_name'
+    assert_file_not_contains "$file" "x-article-extractor"
 }
 
 test_templates_have_no_empty_links() {
@@ -260,13 +266,11 @@ test_templates_have_no_empty_links() {
     assert_file_not_contains "$REPO_ROOT/templates/topic-template.md" "- [[]]"
 }
 
-test_batch_ingest_has_step_two() {
-    local section
-    section="$(sed -n '/## 工作流 3：batch-ingest/,/## 工作流 4：query/p' "$REPO_ROOT/SKILL.md")"
-
-    assert_text_contains "$section" "1. **确认知识库路径**"
-    assert_text_contains "$section" "2. **列出所有可处理文件**"
-    assert_text_contains "$section" "3. **展示文件列表**"
+test_batch_ingest_has_steps() {
+    local file="$REPO_ROOT/skills/wiki-batch-ingest/SKILL.md"
+    assert_file_contains "$file" "列出所有可处理文件"
+    assert_file_contains "$file" "展示文件列表"
+    assert_file_contains "$file" "每 5 个"
 }
 
 test_english_templates_exist_and_have_placeholders() {
@@ -288,22 +292,23 @@ test_english_templates_have_no_empty_links() {
     assert_file_not_contains "$REPO_ROOT/templates/log-en-template.md" "[[]]"
 }
 
-test_skill_md_has_shared_preflight_and_language_rules() {
-    assert_file_contains "$REPO_ROOT/SKILL.md" "## 通用前置检查"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "## 输出语言规则"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "素材 → Source"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "知识图谱 → Knowledge Graph"
+test_shared_context_has_preflight_and_language_rules() {
+    local file="$REPO_ROOT/skills/_shared/context.md"
+    assert_file_contains "$file" "## 通用前置检查"
+    assert_file_contains "$file" "## 输出语言规则"
+    assert_file_contains "$file" "素材 → Source"
+    assert_file_contains "$file" "知识图谱 → Knowledge Graph"
 }
 
-test_skill_md_uses_external_english_templates_and_no_english_output_blocks() {
-    assert_file_contains "$REPO_ROOT/SKILL.md" "templates/index-en-template.md"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "templates/overview-en-template.md"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "templates/log-en-template.md"
-    assert_file_not_contains "$REPO_ROOT/SKILL.md" "**English（en）**："
+test_init_uses_external_english_templates() {
+    local file="$REPO_ROOT/skills/wiki-init/SKILL.md"
+    assert_file_contains "$file" "templates/index-en-template.md"
+    assert_file_contains "$file" "templates/overview-en-template.md"
+    assert_file_contains "$file" "templates/log-en-template.md"
 }
 
 test_setup_wrapper_is_marked_deprecated() {
-    assert_file_contains "$REPO_ROOT/setup.sh" "已废弃：请使用 bash install.sh --platform claude"
+    assert_file_contains "$REPO_ROOT/skills/wiki-init/setup.sh" "已废弃：请使用 bash install.sh --platform claude"
 }
 
 test_source_registry_contract_is_frozen() {
@@ -442,16 +447,25 @@ test_readme_aligns_source_boundary_to_registry() {
     assert_registry_labels_present_in_file "$REPO_ROOT/README.md" "core_builtin"
     assert_registry_labels_present_in_file "$REPO_ROOT/README.md" "optional_adapter"
     assert_registry_labels_present_in_file "$REPO_ROOT/README.md" "manual_only"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "scripts/source-registry.tsv"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "核心主线"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "可选外挂"
+    assert_file_contains "$REPO_ROOT/AGENTS.md" "手动入口"
+    assert_registry_labels_present_in_file "$REPO_ROOT/AGENTS.md" "core_builtin"
+    assert_registry_labels_present_in_file "$REPO_ROOT/AGENTS.md" "optional_adapter"
+    assert_registry_labels_present_in_file "$REPO_ROOT/AGENTS.md" "manual_only"
 }
 
-test_skill_status_and_ingest_align_to_registry() {
-    assert_file_contains "$REPO_ROOT/SKILL.md" "scripts/source-registry.sh list"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "scripts/source-registry.sh get"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "source_id"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "recovery_action"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "install_hint"
-    assert_file_contains "$REPO_ROOT/SKILL.md" '按来源总表中的 `source_label` 和 `raw_dir`'
-    assert_file_contains "$REPO_ROOT/SKILL.md" "外挂状态直接使用"
+test_status_and_ingest_subskills_align_to_registry() {
+    local ingest="$REPO_ROOT/skills/wiki-ingest/SKILL.md"
+    local status="$REPO_ROOT/skills/wiki-status/SKILL.md"
+    assert_file_contains "$ingest" "source-registry.sh"
+    assert_file_contains "$ingest" "source_id"
+    assert_file_contains "$ingest" "recovery_action"
+    assert_file_contains "$ingest" "install_hint"
+    assert_file_contains "$status" "source-registry.sh list"
+    assert_file_contains "$status" '按来源总表中的'
+    assert_file_contains "$status" "adapter-state.sh summary-human"
 }
 
 test_schema_template_aligns_source_boundary_to_registry() {
@@ -472,7 +486,7 @@ test_install_prints_source_boundary_from_registry() {
 
     output="$(
         HOME="$tmp_dir/home" \
-        bash "$REPO_ROOT/install.sh" --platform claude --dry-run 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform claude --dry-run 2>&1
     )" || fail "install.sh dry-run should print shared source boundary"
 
     assert_text_contains "$output" "来源边界"
@@ -485,7 +499,19 @@ test_install_prints_source_boundary_from_registry() {
 }
 
 test_install_warns_when_managed_source_is_missing() {
-    assert_file_contains "$REPO_ROOT/install.sh" "安装源文件缺失，跳过"
+    assert_file_contains "$REPO_ROOT/skills/wiki-init/install.sh" "安装源文件缺失，跳过"
+}
+
+test_all_subskills_can_read_shared_context() {
+    local f ref_path
+    for f in "$REPO_ROOT"/skills/*/SKILL.md; do
+        grep -q "_shared/context.md" "$f" \
+            || fail "$f does not reference shared context"
+    done
+    assert_path_exists "$REPO_ROOT/skills/_shared/context.md"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "外挂状态模型"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "通用前置检查"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "输出语言规则"
 }
 
 test_setup_runs_on_bash_3_2
@@ -495,13 +521,13 @@ test_install_openclaw_copies_bundle
 test_init_fills_language_placeholder
 test_readme_sections
 test_uv_tool_install_failure_is_graceful
-test_skill_md_routes_wechat_to_new_tool
+test_ingest_routes_wechat_to_new_tool
 test_templates_have_no_empty_links
-test_batch_ingest_has_step_two
+test_batch_ingest_has_steps
 test_english_templates_exist_and_have_placeholders
 test_english_templates_have_no_empty_links
-test_skill_md_has_shared_preflight_and_language_rules
-test_skill_md_uses_external_english_templates_and_no_english_output_blocks
+test_shared_context_has_preflight_and_language_rules
+test_init_uses_external_english_templates
 test_setup_wrapper_is_marked_deprecated
 test_source_registry_contract_is_frozen
 test_source_registry_groups_core_optional_and_manual_sources
@@ -511,10 +537,11 @@ test_source_registry_matches_urls_and_files_from_shared_table
 test_legacy_wiki_defaults_missing_fields_without_forcing_migration
 test_legacy_wiki_lazily_creates_new_source_dirs_without_moving_old_materials
 test_readme_aligns_source_boundary_to_registry
-test_skill_status_and_ingest_align_to_registry
+test_status_and_ingest_subskills_align_to_registry
 test_schema_template_aligns_source_boundary_to_registry
 test_install_prints_source_boundary_from_registry
 test_install_warns_when_managed_source_is_missing
+test_all_subskills_can_read_shared_context
 
 bash "$REPO_ROOT/tests/adapter-state.sh" || fail "adapter-state.sh 测试失败"
 

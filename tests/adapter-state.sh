@@ -180,7 +180,7 @@ exit 0"
     output="$(
         HOME="$tmp_dir/home" \
         PATH="$tmp_dir/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-        bash "$REPO_ROOT/install.sh" --platform claude 2>&1
+        bash "$REPO_ROOT/skills/wiki-init/install.sh" --platform claude 2>&1
     )" || fail "install.sh should surface adapter states"
 
     assert_text_contains "$output" "外挂状态"
@@ -191,9 +191,9 @@ exit 0"
 }
 
 test_skill_routes_ingest_and_status_through_adapter_state_model() {
-    assert_file_contains "$REPO_ROOT/SKILL.md" "scripts/adapter-state.sh"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "not_installed / env_unavailable / runtime_failed / unsupported / empty_result"
-    assert_file_contains "$REPO_ROOT/SKILL.md" "外挂状态"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "scripts/adapter-state.sh"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "not_installed / env_unavailable / runtime_failed / unsupported / empty_result"
+    assert_file_contains "$REPO_ROOT/skills/_shared/context.md" "外挂状态"
 }
 
 test_adapter_state_distinguishes_not_installed_and_unsupported

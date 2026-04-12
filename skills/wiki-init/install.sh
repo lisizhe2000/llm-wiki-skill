@@ -4,35 +4,32 @@ set -euo pipefail
 
 SKILL_NAME="llm-wiki"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SOURCE_REGISTRY_SCRIPT="$SCRIPT_DIR/scripts/source-registry.sh"
-ADAPTER_STATE_SCRIPT="$SCRIPT_DIR/scripts/adapter-state.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SOURCE_REGISTRY_SCRIPT="$REPO_ROOT/scripts/source-registry.sh"
+ADAPTER_STATE_SCRIPT="$REPO_ROOT/scripts/adapter-state.sh"
 PLATFORM="auto"
 DRY_RUN=0
 TARGET_DIR=""
 
 # 这些项目都在运行时会被读取或链接：
 # - 入口与说明文件：README / CLAUDE / AGENTS / CHANGELOG
-# - 安装入口：install.sh / setup.sh
-# - 实际执行内容：SKILL.md / scripts / templates / deps
-# - 平台薄入口：platforms（README、CLAUDE、AGENTS 都会引用）
+# - 子 skill 和共享上下文：skills/
+# - 实际执行内容：scripts / templates / deps
 MANAGED_ITEMS=(
-  "SKILL.md"
   "README.md"
   "CLAUDE.md"
   "AGENTS.md"
   "CHANGELOG.md"
-  "install.sh"
-  "setup.sh"
+  "skills"
   "scripts"
   "templates"
   "deps"
-  "platforms"
 )
 
 DEP_SKILLS=()
 
 # 微信工具 URL 从共享配置读取，与 adapter-state.sh 保持一致
-source "$SCRIPT_DIR/scripts/shared-config.sh"
+source "$REPO_ROOT/scripts/shared-config.sh"
 
 info()  { printf '\033[36m[信息]\033[0m %s\n' "$1"; }
 ok()    { printf '\033[32m[完成]\033[0m %s\n' "$1"; }
@@ -147,7 +144,7 @@ install_dependency_skills() {
   local dep dep_target dep_source
 
   for dep in "${DEP_SKILLS[@]}"; do
-    dep_source="$SCRIPT_DIR/deps/$dep"
+    dep_source="$REPO_ROOT/deps/$dep"
     dep_target="$skill_root/$dep"
 
     if [ ! -d "$dep_source" ]; then
@@ -165,7 +162,7 @@ install_bundle() {
   local item source_path target_path
 
   for item in "${MANAGED_ITEMS[@]}"; do
-    source_path="$SCRIPT_DIR/$item"
+    source_path="$REPO_ROOT/$item"
     target_path="$target_dir/$item"
 
     if [ ! -e "$source_path" ]; then
